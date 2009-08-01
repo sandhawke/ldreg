@@ -12,7 +12,7 @@ import time
 import rdflib
 from rdflib import RDF
 
-engine = create_engine('mysql://sandro:@localhost/ldreg', echo=False)
+engine = create_engine('mysql://sandro:@localhost/ldreg', echo=True)
 #engine = create_engine('sqlite:///:memory:', echo=True)
 
 Session = sessionmaker(bind=engine)
@@ -20,6 +20,7 @@ Base = declarative_base()
 
 session = Session()
 
+iri_obtain_cache = { }   # safe to cache, since table is append-only
 class IRI(Base):
     __tablename__ = 'iri'
 
@@ -32,21 +33,31 @@ class IRI(Base):
     def __repr__(self):
         return "IRI(id=%d text=%s)" % (self.id, `self.text`)
 
-# I bet sqlalchemy would do this for me, if I knew how to use relations.
-iri_id_cache = { }   # safe to cache, since table is append-only
+    @staticmethod
+    def obtain(text):
+        '''Lookup (and create if necesssary) the IRI object with this text
+
+        We *could* do this in __new__ I suppose, but that seems too risky.
+        '''
+
+        try:
+            return iri_obtain_cache[text]
+        except KeyError:
+            pass
+        self = session.query(IRI).filter(IRI.text==text).first()
+        if self is None:
+            session.add(IRI(text))
+            self = session.query(IRI).filter(IRI.text==text).first()
+            if self is None:
+                raise RuntimeError
+
+        iri_obtain_cache[text] = self
+        return self
+
+
+
 def iri_id(text):
-    try:
-        return iri_id_cache[text]
-    except KeyError:
-        pass
-    row = session.query(IRI.id).filter(IRI.text==text).first()
-    if row is None:
-        session.add(IRI(text))
-        row = session.query(IRI.id).filter(IRI.text==text).first()
-        if row is None:
-            raise RuntimeError
-        
-    iri_id_cache[text] = row.id
+    return IRI.obtain(text).id
     return row.id
 
 # I bet sqlalchemy would do this for me, if I knew how to use relations.
@@ -67,7 +78,10 @@ class Entry(Base):
     type = Column(String(1), primary_key=True)
     when = Column(Integer)  # the time of the summary-report
 
-    # use relation() somehow....?
+    namespace = relation(IRI, 
+                         primaryjoin=(namespace_id == IRI.id),
+                         backref=backref('entries_as_namespace',
+                                         order_by=source_id))
 
     def __init__(self, local, namespace_id, source_id, report_id, type, when):
         self.local = local
@@ -78,10 +92,17 @@ class Entry(Base):
         self.when = when
         
     def __repr__(self):
-        return "<User('%s', %d %d %d)>" % (self.local, self.namespace_id, self.source_id, self.report_id)
+        s = ""
+        s += self.local
+        s += ", ns: " + str(self.namespace_id)
+        s += " (" + `self.namespace` +")"
+        return s
+        #return "<User('%s', %d %d %d)>" % (self.local, self.namespace_id, self.source_id, self.report_id)
 
     #  User.__table__
     #  metadata.Base.metadata
+
+
 
 metadata = Base.metadata
 metadata.create_all(engine) 
@@ -202,13 +223,15 @@ def stats():
 
 
 
-def xfind(iri):
-    (ns, local) = split(iri)
-    ns_id = iri_id(ns)
-    for row in session.query(Entry).filter(Entry.namespace_id==ns_id).filter(Entry.local==local):
-        print row, row.type, iri_text(row.namespace_id)
-
 def find(iri):
+    (ns, local) = split(iri)
+    for row in session.query(Entry).filter(Entry.namespace==IRI.obtain(ns)).filter(Entry.local==local):
+        print `row`
+    
+    print ns, "used as namespace:"
+    print IRI.obtain(ns).entries_as_namespace
+
+def xfind(iri):
     (ns, local) = split(iri)
     ns_id = iri_id(ns)
 
