@@ -44,3 +44,53 @@ way of a SPARQL endpoint.  The data source may have either an
 
 ISSUE: It would be nice if there were a standard protocol for discovering the endpoint IRI from the identity IRI, perhaps using some syntactic markers inside the identity IRI, or doing a fetch of the first few triples in the graph.
 
+=== Provided Vocabularies ===
+
+for use inside vocabulary graphs:
+
+   <> ldreg:tracker <...tracker url...>
+
+for use inside data sources, if you're providing an end-point
+
+   <> ns1:sparqlProxy <...endpoint address...>
+   [sort of interverse of saddle:dataSet]
+
+   see http://lists.w3.org/Archives/Public/www-archive/2009Aug/0001
+
+
+for use inside data sources:
+
+   <> ldreg:analysis <...url of analysis of this source...>
+
+for use inside an analysis
+
+   <Analysis>
+      <dataSource>
+         <DataSource rdf:about="... data source ...">
+            <endpoint rdf:resource="... end point address ...">
+      <PropertyUse>
+   eh...    don't need to be so reified.
+
+     <> a Analysis.
+     <... data source ...>
+         sameAs  <...  other URLs for same data source ...>
+         endpoint < ... sparql endpoint ... >
+         usesProperty <... property1 ...>
+         usesProperty <... property2 ...>
+         usesClass <... property2 ...>
+         usesSubject
+         usesObjectValue
+	 usesTerm   (superproperty of those)
+
+	 usesDataValue
+	 usesKeyword    (alphanumeric sequence, lowercased)
+
+
+          AnalysisWithoutLiterals
+	  AnalysisWithLiterals
+
+         lastModified
+         expires
+
+         dc:creator (of analysis)
+
