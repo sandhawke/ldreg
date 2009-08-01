@@ -29,29 +29,39 @@ class Analysis (object):
         self.keywords = set()
         self.last_modified = None
         self.expires = None
+        self.with_literals = False
 
-    def create(self, source):
+    def create(self, source, with_literals=False):
 
         # TODO: switch to using streaming from the parser; no need to store
         # all this data
+        start = time.time()
+
         graph = rdflib.ConjunctiveGraph()
         graph.load(source)
         self.data_source_iri = source
+        self.with_literals = with_literals
 
+        c = 0
         for (s, p, o) in graph:
+            c += 1
             if isinstance(s, rdflib.URIRef):
                 self.term_uses.add( (str(s), 's') )
             self.term_uses.add( (str(p), 'p') )
             if p == RDF.type:
                 self.term_uses.add( (str(o), 'c') )
-            if isinstance(o, rdflib.Literal):
-                self.data_values.add( o )
-                # only do this for some datatypes...?
-                for word in re.findall(word_pattern, unicode(o)):
-                    self.keywords.add(word.lower())
-            else:
-                if isinstance(o, rdflib.URIRef):
-                    self.term_uses.add( (str(o), 'o') )
+            if isinstance(o, rdflib.URIRef):
+                self.term_uses.add( (str(o), 'o') )
+
+            if with_literals:
+                if isinstance(o, rdflib.Literal):
+                    self.data_values.add( o )
+                    # only do this for some datatypes...?
+                    for word in re.findall(word_pattern, unicode(o)):
+                        self.keywords.add(word.lower())
+
+        end = time.time()
+        print "%d triples in %.3f seconds (%.1f t/s)" % (c, end-start, c/(end-start))
 
     def show(self):
         print
@@ -60,19 +70,27 @@ class Analysis (object):
         print 
         print "Terms:"
         c = 0
-        for (term, use) in sorted(self.term_uses):
+        for (term, use) in (self.term_uses):
             c += 1
             print "   %d. "%c, " ("+use+")",  term
             if c > 20:
                 print "   ..."
                 break
 
+        if not self.with_literals:
+            print "No literals scanned for this analysis."
+            return
+
         print 
         print "Literals:"
         c = 0
-        for value in sorted(self.data_values):
+        for value in (self.data_values):
             c += 1
-            print "   %d. "%c, value
+            print "   %d. "%c, `value[1:80]`,
+            if len(value) > 80:
+                print "..."
+            else:
+                print
             if c > 20:
                 print "   ..."
                 break
@@ -80,7 +98,7 @@ class Analysis (object):
         print 
         print "Keywords:"
         c = 0
-        for word in sorted(self.keywords):
+        for word in (self.keywords):
             c += 1
             print "   %d. "%c, word
             if c > 20:
@@ -108,6 +126,11 @@ if len(sys.argv) > 1:
     if sys.argv[1] == 'analyze':
         a = Analysis()
         a.create(sys.argv[2])
+        a.show()
+
+    if sys.argv[1] == 'analyzel':
+        a = Analysis()
+        a.create(sys.argv[2], with_literals=True)
         a.show()
 
 
