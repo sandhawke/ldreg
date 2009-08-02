@@ -1,0 +1,62 @@
+/*
+  Some vaguely-reasonable styles for data tables.
+
+  The main class is "data-table".
+
+  There's a mixin class "form-table" for when the headings are on the
+  left.
+
+*/
+
+table.data-table {
+   font-size:0.9em; 
+   color:black;
+   border-style: none; 
+   border-collapse:collapse;
+}
+
+table.data-table th:hover a {
+   text-decoration: underline;		      
+   color: blue;
+}
+
+table.data-table th {
+   background-color:#E8E8E8;
+   font-weight:normal;
+}
+
+table.data-table th a {
+   text-decoration: none;		      
+   color: black;
+}
+
+table.data-table th:hover {
+   background-color:#F0F0F0;
+   text-decoration: none;		      
+   color: blue;
+}
+
+table.data-table td, th {
+   border:1px solid #AAAAAA;
+   padding-left:0.3em;
+   padding-right:0.3em;
+   text-align:center;
+}
+
+/*
+   Make a few changes for add-on class "form-table"
+*/
+
+table.form-table {
+   border-collapse: separate;
+   border-spacing: 0.2em;
+}
+
+table.form-table th {
+   border: none;
+   /* text-align: right;  */
+}
+
+table.form-table td {
+   text-align: left;
+}
