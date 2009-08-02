@@ -221,7 +221,11 @@ def stats():
     print
 
 
-
+def nfind(iri):
+    (ns, local) = split(iri)
+    for row in session.query(Entry).filter(Entry.namespace==IRI.obtain(ns)).filter(Entry.local==local):
+        yield row
+    
 
 def find(iri):
     (ns, local) = split(iri)

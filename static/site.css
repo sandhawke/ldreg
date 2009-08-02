@@ -105,7 +105,7 @@ body {
    font-size: 90%;
    // background:#ddd;
    float:left;
-   width: 12em;
+   /* width: 12em; */
    padding-right: 1em;
    padding-bottom: 2em;
 }
@@ -137,4 +137,12 @@ body {
 #footer p {
    padding:5px;
    margin:0;
+}
+
+.error {
+    color: red;
+    font-weight: bold;
+    padding: 0.3em;
+    /* border: 1px dotted grey; */
+    /* margin: 1.2em;   */
 }

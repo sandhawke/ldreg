@@ -23,6 +23,8 @@ import web           # http://webpy.org
 from html import * # my toolkit...
 import webextras
 
+import tracker
+
 
 
 urls = (
@@ -132,9 +134,41 @@ class Search:
 
     def GET(self):
 
+        try:
+            item = web.input().item
+        except AttributeError:
+            item = None
+
         page = Page("Search")
-        page << p("@@@")
+
+        if item is None or item == "":
+            comment = ""
+        else:
+            comment = self.do_search(page, item)
+            if comment is None:
+                return page.done()
+
+        f = form("Data Source:")
+        if comment:
+            f << div("* ", comment, class_="error")
+        f << input(value=item, type="text", name="item", size="80")
+        f << " "
+        f << input(type="submit", value="Submit")
+        page << f
+
         return page.done()
+
+    def do_search(self, page, iri):
+        if not iri.startswith("http://"):
+            return "URL does not start with http://..."
+        page << "Search results..."
+        
+        for row in tracker.nfind(iri):
+            page << p("Row:", `row`)
+  
+
+    POST=GET
+
 
 class notfound:
 
