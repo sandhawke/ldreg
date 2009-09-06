@@ -1,4 +1,5 @@
-#! /usr/bin/env python
+#!/home/ldreg/local/bin/python
+###! /usr/bin/env python
 """
 
 A Website which gives web users access to tracker functions.
@@ -15,6 +16,7 @@ this run as CGI/FastCGI.
 
 import sys
 sys.path[0:0] = ('/home/sandro/ldreg/misc', )  # where html and webextras are
+sys.path[0:0] = ('/home/ldreg/ldreg.net/misc', )  
 
 import time
 
@@ -23,19 +25,22 @@ import web           # http://webpy.org
 from html import * # my toolkit...
 import webextras
 
-import tracker
-
-
+# import tracker
 
 urls = (
   '/', 'Home',
   '/demo', 'Demo',
-  '/stats', 'Stats',
+  '/statistics', 'Stats',
   '/blog', 'Blog',
   '/wiki', 'Wiki',
   '/about', 'About',
 
+  '/find', 'Find',
+  '/query', 'Query',
   '/register', 'Register',
+  '/track', 'Track',
+
+
   '/status', 'Status',
   '/search', 'Search',
   '/(.*\.(?:js|css|html|JPG))', 'static',
@@ -89,7 +94,7 @@ class Page:
 
     def done(self):
 
-        self.footer << div(p("""DISCLAIMER: This is an experimental technology demonstration, being run by Sandro Hawke (sandro@hawke.org) as a hobby.    It is not supported or endorsed by his employer at this time."""), id="disclaimer")
+        self.footer << div(p("""DISCLAIMER: This is an experimental technology demonstration, being run as a hobby by Sandro Hawke (sandro@hawke.org).    It is not supported or endorsed by his employer at this time."""), id="disclaimer")
         
         #self.footer << p("Page generated in %f seconds." % (time.time()-self.t0))
         self.titlebar = div([], id="title")
@@ -100,11 +105,27 @@ class Page:
         snul = ul()
         self.nav1 << snul
         for area in (Home(), Demo(), Stats(), Blog(), Wiki(), About()):
-            if area.__class__ == self.area.__class__:
+            if (area.__class__ == self.area.__class__ or
+                area.__class__ == getattr(self.area, "parent", "").__class__):
                 s=" active"
             else:
                 s=""
             snul << li(a(area.label, href=get_url(area), class_="selectable"+s))
+
+        # fill in nav2 in the cases where it's shown...
+        if (self.area.__class__ == Home().__class__ or
+            getattr(self.area, "parent", "").__class__ == Home().__class__):
+            ul2 = ul()
+            self.nav2 << div(ul2, class_="snav")
+            for area in (Find(), Query(), Register(), Track()):
+                if (area.__class__ == self.area.__class__):
+                    s = " active"
+                else:
+                    s = ""
+                ul2 << li(a(area.label, 
+                            style="background:"+area.color+";",
+                            href=get_url(area), 
+                            class_="selectable"+s))
 
         
         web.expires(60)
@@ -137,6 +158,7 @@ class Home:
     def GET(self):
         page = Page(self)
         page << p("@@@ to do")
+
         return page.done()
 
 class Demo:
@@ -145,7 +167,7 @@ class Demo:
 
     def GET(self):
         page = Page(self)
-        page << p("@@@ to do")
+        page << p("@@@ Demos will go here, like 'Who Knows Me' and 'Lets See A Movie'")
         return page.done()
 
 class Stats:
@@ -154,7 +176,7 @@ class Stats:
 
     def GET(self):
         page = Page(self)
-        page << p("@@@ to do")
+        page << p("@@@ Statistics should go here")
         return page.done()
 
 class Blog:
@@ -163,7 +185,7 @@ class Blog:
 
     def GET(self):
         page = Page(self)
-        page << p("@@@ to do")
+        page << p("@@@ We don't have a blog yet.   So why is this page here?")
         return page.done()
 
 class Wiki:
@@ -187,21 +209,61 @@ class About:
         page << p("Although Sandro is an MIT employee and a staff member at W3C, this work is not endorsed by, supported by, funded by, or in way offically connected with either MIT or W3C.")
         return page.done()
 
+class Find:
+
+    parent = Home()
+    label = "Find"
+    color = "#339999"
+    
+    def GET(self):
+
+        page = Page(self)
+        
+        page << h2("Find Data Sources", style="background:"+self.color+"; padding: 1em;")
+        page << p("@@@")
+        return page.done()
+
+class Query:
+
+    parent = Home()
+    label = "Query"
+    color = "#006666"
+    
+    def GET(self):
+
+        page = Page(self)
+        page << h2("Query All Registered Data Sources", style="background:"+self.color+"; padding: 1em;")
+        page << p("@@@")
+        return page.done()
+
 class Register:
 
+    parent = Home()
+    label = "Register"
+    color = "#669966"
+    
     def GET(self):
 
-        page = Page("Register")
+        page = Page(self)
+        page << h2("Registered a Data Source", style="background:"+self.color+"; padding: 1em;")
         page << p("@@@")
         return page.done()
 
-class Status:
+class Track:
 
+    parent = Home()
+    label = "Track"
+    color = "#336633"
+    
     def GET(self):
 
-        page = Page("Status")
+        page = Page(self)
+        page << h2("Track Usage of a Vocabulary", style="background:"+self.color+"; padding: 1em;")
+
         page << p("@@@")
         return page.done()
+
+
 
 class Search:
 
@@ -252,6 +314,33 @@ class dump:
 
     def GET(self):
         raise RuntimeError('Dump Called')
+
+
+def cgiMain():   ########  CUT FROM SOMEWHERE ELSE AS EXAMPLE
+
+    form = cgi.FieldStorage()
+    source=form.getfirst("source")
+    go=form.getfirst("go")
+    if source is None or source == "":
+        groupname = form.getfirst("group")
+        group = local_groups_config.get_group(groupname)
+        prompt(group)
+    else:
+        ensure_safety(source)
+        if go == do_sync_msg:
+            sync(source)
+        else:
+            # assume go == gen_preview_msg
+            # because the old wiki pages don't tell us that.
+            save = form.getfirst("save")
+            if save is None or save == "":
+                generate_page2(source)
+            else:
+                generate_page2(source, save=True, form=form)
+
+##   # say that we're doing FCGI instead of just CGI
+##   web.wsgi.runwsgi = lambda func, addr=None: web.wsgi.runfcgi(func, addr)
+
 
 if __name__ == "__main__": 
     web.config.debug = True

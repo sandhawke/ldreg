@@ -136,16 +136,23 @@ img {
     position:relative;
     left:0px;
     line-height:1.3em;
+
+    border: 3px solid #FFF;
 }
 .snav ul li a:hover {
     background:#369;
     color:#fff;
+
+    border: 3px solid #369;
 }
 .snav ul li a.active,
 .snav ul li a.active:hover {
     color:#fff;
     background:#000;
     font-weight:bold;
+    border-right: 1em solid black;
+    border-left: 1em solid black;
+
 }
 .snav ul li a span {
     display:block;
@@ -224,7 +231,7 @@ img {
     background:#000000; 
     color:#99AAAA; 
     padding: 1em; 
-    padding-bottom: 3em;
+    padding-bottom: 60em;
 }
 #footer p {
     padding:10px;
