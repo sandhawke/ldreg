@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE rdf:RDF [
+    <!ENTITY ldreg "http://ldreg.org/terms#" >
+    <!ENTITY owl "http://www.w3.org/2002/07/owl#" >
+    <!ENTITY xsd "http://www.w3.org/2001/XMLSchema#" >
+    <!ENTITY rdfs "http://www.w3.org/2000/01/rdf-schema#" >
+    <!ENTITY rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#" >
+    <!ENTITY dc 'http://purl.org/dc/elements/1.1/'>
+]>
+
+
+<rdf:RDF 
+    xmlns="http://ldreg.org/terms#"
+    xml:base="http://ldreg.org/terms#"
+    xmlns:ldreg="http://ldreg.org/terms#"
+    xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+    xmlns:owl2xml="http://www.w3.org/2006/12/owl2-xml#"
+    xmlns:owl="http://www.w3.org/2002/07/owl#"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns:dc="&dc;"
+>
+
+  <owl:Ontology rdf:about="">
+    <dc:creator rdf:resource="http://www.w3.org/People/Sandro/data#Sandro_Hawke"/>
+    <rdfs:seeAlso rdf:resource="http://ldreg.net/wiki/Terminology"/>
+  </owl:Ontology>
+    
+  <owl:ObjectProperty rdf:about="tracker">
+    <rdfs:comment>Which tracker(s) are used for tracking usage of this vocabulary?</rdfs:comment>
+    <rdfs:range rdf:resource="Tracker"/>
+    <rdfs:domain rdf:resource="VocabularySource"/>
+  </owl:ObjectProperty>
+    
+  <owl:Class rdf:about="DataSource">
+    <rdfs:comment>An RDF graph available on the Web.</rdfs:comment>
+  </owl:Class>
+  
+  <owl:Class rdf:about="Tracker">
+    <rdfs:comment>A tracker is a database (with a standard Web API) operating on behalf of the owners of one or more vocabularies, maintaining a list of the data sources which use each term in the vocabulary.</rdfs:comment>
+  </owl:Class>
+    
+  <owl:Class rdf:about="VocabularySource">
+    <rdfs:comment>A vocabulary source is a data source which is also a vocabulary graph. This is, it is a data source which has an identity IRI which is the namespace part of one or more terms.</rdfs:comment>
+    <rdfs:subClassOf rdf:resource="DataSource"/>
+  </owl:Class>
+    
+  <rdf:Description rdf:about="http://ldreg.org/terms#">
+    <tracker rdf:resource="http://ldreg.rdftracker.com"/>
+  </rdf:Description>
+    
+  <Tracker rdf:about="http://ldreg.rdftracker.com"/>
+
+</rdf:RDF>
+
