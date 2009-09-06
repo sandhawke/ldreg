@@ -51,6 +51,17 @@ img {
     margin:0;
 }
 
+#title {
+    background:#000000; 
+    color:#99AAAA; 
+    padding: 1em;
+}
+
+#title h2 {
+    text-align: right;
+    font-style: italic;
+}
+
 /* CHANGED #header to .nav, so we can reuse this */
 
 .nav ul {
@@ -209,6 +220,11 @@ img {
     float:left;
     width:100%;
     border-top:1px solid #000;
+
+    background:#000000; 
+    color:#99AAAA; 
+    padding: 1em; 
+    padding-bottom: 3em;
 }
 #footer p {
     padding:10px;

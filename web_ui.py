@@ -28,9 +28,13 @@ import tracker
 
 
 urls = (
-  '/', 'Main',
-  '/main', 'Main',
+  '/', 'Home',
+  '/demo', 'Demo',
+  '/stats', 'Stats',
+  '/blog', 'Blog',
+  '/wiki', 'Wiki',
   '/about', 'About',
+
   '/register', 'Register',
   '/status', 'Status',
   '/search', 'Search',
@@ -40,21 +44,44 @@ urls = (
   '/(.*)', 'notfound',
   )
 
+def get_url(handler):
+    for i in range(0, len(urls), 2):
+        if urls[i+1] == handler.__class__.__name__:
+            return urls[i]
+    raise RuntimeException('no url for '+handler.__class__.__name__)
 
 class Page:
+
+    '''
+
+    nav1     highest level nav
+    nav2     next level nav
+                   (which we'll assemble on the side for now...)
+    sidebar == right side, column 3
+
+    doctree?    eh...   that's nav2.
+
+    '''
 
     def __init__(self, area=None, title=None):
         self.t0 = time.time()
         self.area = area
         self.title = title
         self.doc = Document()
-        
+
+        # this is how the CSS thinks of them
         self.header =  div(' ', id="header")
-        self.sitenav = div(' ', id="sitenav")
-        self.doctree = div(' ', id="doctree")
-        self.sidebar = div(' ', id="sidebar")
-        self.main =    div(' ', id="main")
+        self.col1   =  div(' ', class_='col1')
+        self.col2   =  div(' ', class_='col2')
+        self.col3   =  div(' ', class_='col3')
         self.footer =  div(' ', id="footer")
+
+        # but in general, I want to think of them like this.
+        self.main   =  self.col1
+        self.nav1   =  div(' ', class_='nav1 nav')
+        self.nav2   =  self.col2
+        self.sidebar=  self.col3
+
 
     def __lshift__(self, content):
        """Convenience syntax for append, with no parens to balance."""
@@ -62,33 +89,40 @@ class Page:
 
     def done(self):
 
-        self.footer << div(hr(), p("""DISCLAIMER: This is an experimental service, being run as a hobby.    Contact Sandro Hawke (sandro@hawke.org) for more information.  Although Sandro is an MIT employee and a staff member at W3C, this work is not endorsed by, supported by, funded by, or in any way offically connected with either MIT or W3C.  So don't ask me about it during the work day, and don't suggest that LDReg is a W3C product!"""), id="disclaimer")
+        self.footer << div(p("""DISCLAIMER: This is an experimental technology demonstration, being run by Sandro Hawke (sandro@hawke.org) as a hobby.    It is not supported or endorsed by his employer at this time."""), id="disclaimer")
         
-        # self.footer << p("Page generated in %f seconds." % (time.time()-self.t0))
-        self.header << h1("LD", em("Reg"))
+        #self.footer << p("Page generated in %f seconds." % (time.time()-self.t0))
+        self.titlebar = div([], id="title")
+        self.header << self.titlebar
+        self.titlebar << h1("LD", em("Reg"))
+        self.titlebar << h2("Linked Data Registration ", Raw("&mdash;"), " Now you can Query the Semantic Web")
 
         snul = ul()
-        self.sitenav << snul
-        for area in ("Main", "Search", "Register", "Status", "About"):
-            if area.lower() == self.area.lower():
-                s=" selected"
+        self.nav1 << snul
+        for area in (Home(), Demo(), Stats(), Blog(), Wiki(), About()):
+            if area.__class__ == self.area.__class__:
+                s=" active"
             else:
                 s=""
-            snul << li(a(area, href="/"+area.lower()), class_="selectable"+s),
+            snul << li(a(area.label, href=get_url(area), class_="selectable"+s))
 
         
         web.expires(60)
         web.header('Content-Type', 'text/html; charset=utf-8')
         if self.title is None:
-            self.title = "LDReg: "+self.area
+            self.title = "LDReg: "+self.area.label
         self.doc.head << title(self.title)
         self.doc.head << link(rel="stylesheet", type="text/css", href="/tables.css")
-        self.doc.head << link(rel="stylesheet", type="text/css", href="/site.css")
+        self.doc.head << link(rel="stylesheet", type="text/css", href="/black.css")
+
+        
         self.doc << self.header
-        self.doc << self.sitenav
-        self.doc << self.doctree
-        self.doc << self.sidebar
-        self.doc << self.main
+        self.header << self.nav1
+
+        d3 = div(self.col1, self.col2, self.col3, class_="colleft")
+        self.doc << div(div(d3, class_="colmid"),
+                        class_="colmask threecol")
+
         self.doc << self.footer
         return self.doc
 
@@ -96,20 +130,59 @@ class static:
     def GET(self, filename):
         return webextras.serveStatic(filename)
 
-class Main:
-    
+class Home:
+
+    label = "Home"
+
     def GET(self):
-        page = Page("Main")
-        page << h2('ldreg!')
+        page = Page(self)
         page << p("@@@ to do")
-        page << p("This technology is under development.  There is no stable published specification at this time.")
         return page.done()
+
+class Demo:
+
+    label = "Demo"
+
+    def GET(self):
+        page = Page(self)
+        page << p("@@@ to do")
+        return page.done()
+
+class Stats:
+
+    label = "Stats"
+
+    def GET(self):
+        page = Page(self)
+        page << p("@@@ to do")
+        return page.done()
+
+class Blog:
+
+    label = "Blog"
+
+    def GET(self):
+        page = Page(self)
+        page << p("@@@ to do")
+        return page.done()
+
+class Wiki:
+
+    label = "Wiki"
+
+    def GET(self):
+        page = Page(self)
+        page << p("This page should never be seen, due to apache config.")
+        return page.done()
+
 
 class About:
 
+    label = "About"
+
     def GET(self):
 
-        page = Page("About")
+        page = Page(self)
         page << p("This website is maintained by Sandro Hawke (sandro@hawke.org) as an experiment.")
         page << p("Although Sandro is an MIT employee and a staff member at W3C, this work is not endorsed by, supported by, funded by, or in way offically connected with either MIT or W3C.")
         return page.done()
