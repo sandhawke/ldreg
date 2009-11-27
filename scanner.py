@@ -10,17 +10,36 @@ Store that stuff in a SQL database.
 
 Answer queries about that stuff, from the command line, or the web.
 
+Performance?  localhost on my laptop (2.66GHz dual core 32-bit):
+
+  $ http_load -p 10 -s 60 test_url_2 
+  28131 fetches, 10 max parallel, 6.97649e+06 bytes, in 60.0012 seconds
+  248 mean bytes/connection
+  468.84 fetches/sec, 116272 bytes/sec
+  msecs/connect: 0.0819507 mean, 1.059 max, 0.023 min
+  msecs/first-response: 21.0859 mean, 519.298 max, 8.412 min
+
 
 TODO:
-    - add web API
+    - fix If-Modified-Since
+    - use some better/other report formats?
+    - make min-age (now 5sec) be adaptive to load time of that source?
     - support query of sparql stuff
-    - abort if we find out about sparq or an existing scan
+    - abort/redirect if we find out about sparq or an existing scan
 """
 __version__ = "0.0.1"
+
+#  -- doesn't seem to affect performance right now, so leave it off
+#try:
+#    import psyco
+#    psyco.full()
+#except:
+#    pass
 
 import sys
 sys.path[0:0] = ('/home/sandro/ldreg/misc', '/home/ldreg/ldreg.net/misc', )  
 
+import logging
 import copy
 import time
 import re
@@ -40,6 +59,38 @@ from debugtools import debug
 
 import splitter
 
+# **NOT** thread aware.   That's okay, we don't use threads.  But
+# tornado makes us re-entrant, so we can't necessary just use one
+# db connection...
+db_free_pool = []
+class DB (object):
+    
+    def __init__(self):
+        try:
+            self.db = db_free_pool.pop()
+        except:
+            self.db = None
+        if self.db is None:
+            self.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            self.db.printing = False
+    
+    def __del__(self):
+        db_free_pool.append(self.db)
+
+    def select(self, *args, **kwargs):
+        return self.db.select(*args, **kwargs)
+
+    def insert(self, *args, **kwargs):
+        return self.db.insert(*args, **kwargs)
+
+    def update(self, *args, **kwargs):
+        return self.db.update(*args, **kwargs)
+
+    def query(self, *args, **kwargs):
+        return self.db.query(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self.db.delete(*args, **kwargs)
 
 headers = {
     'Accept': 'application/rdf+xml',
@@ -392,7 +443,7 @@ def ensure_scanned(db, source):
     if good:
         ago = now - good.time_complete
         if ago < 5:
-            print "reusing scan, it was only %fs ago" % ago
+            # print "reusing scan, it was only %fs ago" % ago
             return good
         last_modified = good.last_modified
         print "have good-but-old scan, last mod", last_modified
@@ -411,7 +462,7 @@ def report(source, ns):
     Return a report [in std format?] of the given source, those
     entries in the given namespace
     """
-    db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+    db = DB()
     scan = ensure_scanned(db, source)
     scan_id = scan.id
     ns_id = id_by_iri(db, ns)
@@ -421,14 +472,14 @@ def report(source, ns):
     out = u""
     for r in results:
         out +=  "%d %s %s\n" % (r.count, r.type, r.local)
-    db.close()
+    del db                   
     return out
 
 def scan(source):
     """
     Scan the source and return a list of namespaces it uses.
     """
-    db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+    db = DB()
     scan = ensure_scanned(db, source)
     scan_id = scan.id
 
@@ -437,7 +488,7 @@ def scan(source):
     for r in results:
         out += r.namespace
         out += u"\n"
-    db.close()
+    del db
     return out
 
 ################################################################
@@ -476,7 +527,7 @@ def main():
     if len(sys.argv) > 1:
 
         if sys.argv[1] == 'clean':
-            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db = DB()
             db.printing = False   # override web.py config setting
             source = sys.argv[2]
             delete_old_scans(db, source)
@@ -501,19 +552,19 @@ def main():
 
         if sys.argv[1] == 'scantodb':
             a = Scan()
-            a.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            a.db = DB()
             a.db.printing = False   # override web.py config setting
             a.create(sys.argv[2])
             a.db_finish()
 
         if sys.argv[1] == 'showns':
-            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db = DB()
             db.printing = False   # override web.py config setting
             iri = sys.argv[2]
             db_showns(db, iri)
 
         if sys.argv[1] == 'show':
-            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db = DB()
             db.printing = False   # override web.py config setting
             iri = sys.argv[2]
             ns = sys.argv[3]
