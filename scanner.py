@@ -12,8 +12,6 @@ Answer queries about that stuff, from the command line, or the web.
 
 
 TODO:
-    - delete older scans...?   how old?     any, as soon as this
-      one is done?
     - add web API
     - support query of sparql stuff
     - abort if we find out about sparq or an existing scan
@@ -42,19 +40,47 @@ from debugtools import debug
 
 import splitter
 
+
 headers = {
     'Accept': 'application/rdf+xml',
     # 'Accept': 'application/rdf+xml,application/xhtml+xml;q=0.5',
     'User-agent': 'ldregscan-%s (sandro@hawke.org)' % __version__
     }
 
+
+_iri_by_id= {}
+def iri_by_id(db, id):
+    try:
+        return _iri_by_id[id]
+    except:
+        pass
+    for result in db.select('iri', where="id=$id", vars=locals(), limit=1):
+        _iri_by_id[id] = result.text
+        return result.text
+    raise RuntimeError("bad id %s" % `id`)
+
+_id_by_iri= {}
+def id_by_iri(db, iri):
+    try:
+        return _id_by_iri[iri]
+    except:
+        pass
+    for result in db.select('iri', where="text=$iri", vars=locals(), limit=1):
+        _id_by_iri[iri] = result.id
+        return result.id
+    raise RuntimeError("bad iri, no id for %s" % `iri`)
+
 # borrowed from rdflib
 class URLInputSource(InputSource, object):
-    def __init__(self, system_id=None):
+    def __init__(self, system_id=None, last_modified=None):
         super(URLInputSource, self).__init__(system_id)
         self.url = system_id
         # So that we send the headers we want to...
-        req = urllib2.Request(system_id, None, headers)
+        my_headers = headers.copy()
+        if last_modified:
+            my_headers['If-Modified-Since'] = last_modified
+        # if-modified-since isn't working.... @@@
+        req = urllib2.Request(system_id, None, my_headers)
         self.file = urllib2.urlopen(req)
 
         # when we were getting mysterious text...
@@ -69,6 +95,10 @@ class URLInputSource(InputSource, object):
     def __repr__(self):
         return self.url
 
+    @property
+    def last_modified(self):
+        # maybe also look at.... ['content-length', 'metadata-location', 'content-location', 'accept-ranges', 'expires', 'vary', 'server', 'tcn', 'last-modified', 'connection', 'etag', 'cache-control', 'date', 'p3p', 'content-type']
+        return self.file.headers['last-modified']
 
 def incr(dict, key):
     try:
@@ -80,6 +110,9 @@ def incr(dict, key):
 word_pattern = re.compile(r'''[a-zA-Z0-9]+''')   
 
 class AbortConnection(RuntimeError):
+    pass
+
+class NoGoodScan(RuntimeError):
     pass
 
 class Scan (object):
@@ -96,11 +129,12 @@ class Scan (object):
         self.with_literals = False
         self.db = None
 
-    def create(self, source, with_literals=False):
+    def create(self, source, with_literals=False, last_modified=None):
 
         self.start = time.time()
 
-        sax_input = URLInputSource(source)
+        sax_input = URLInputSource(source, last_modified=last_modified)
+        self.last_modified = sax_input.last_modified
         self.sax_input = sax_input
         parser = RDFXMLParser()
 
@@ -216,6 +250,7 @@ class Scan (object):
                                  source_id=self.source_id, 
                                  time_begun=self.start,
                                  triples=0,
+                                 last_modified=self.last_modified,
                                  status=0)
         debug('scan', 'database record created', self.id)
 
@@ -304,7 +339,7 @@ def get_latest_scan(db, source, all_scan_ids=None):
     if max_good_id > -1:
         return rr
     else:
-        raise Exception('no good scan in database')
+        raise NoGoodScan()
 
 def delete_old_scans(db, source):
     ids = []
@@ -333,46 +368,169 @@ def db_show(db, source, ns):
                        where='scan_id=$scan_id and namespace_id=$ns_id', 
                        vars=locals()):
         print r.count, r.local
+
+
+def ensure_scanned(db, source):
+    """
+    Make sure we have a good, up-to-date scan of this source in the
+    database; return its database record.
+
+    Should we be using parallel worker threads, instead of doing it
+    ourselves?  Probably.
+
+    ? while scanning, if we see another scanner named, note that
+    ? async fetching, for use within tornado
+
+    """
+    now = time.time()
+
+    try:
+        good = get_latest_scan(db, source)
+    except NoGoodScan:
+        good = None
         
+    if good:
+        ago = now - good.time_complete
+        if ago < 5:
+            print "reusing scan, it was only %fs ago" % ago
+            return good
+        last_modified = good.last_modified
+        print "have good-but-old scan, last mod", last_modified
+ 
+    a = Scan()
+    a.db = db
+    a.db.printing = False   # override web.py config setting
+    a.create(source, last_modified)
+    a.db_finish()
 
-if len(sys.argv) > 1:
+    return get_latest_scan(db, source)
+    
 
-    if sys.argv[1] == 'clean':
-        db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
-        db.printing = False   # override web.py config setting
-        source = sys.argv[2]
-        delete_old_scans(db, source)
+def report(source, ns):
+    """
+    Return a report [in std format?] of the given source, those
+    entries in the given namespace
+    """
+    db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+    scan = ensure_scanned(db, source)
+    scan_id = scan.id
+    ns_id = id_by_iri(db, ns)
+    results = db.select('term_use', 
+                        where="scan_id=$scan_id and namespace_id=$ns_id", 
+                        vars=locals())
+    out = u""
+    for r in results:
+        out +=  "%d %s %s\n" % (r.count, r.type, r.local)
+    db.close()
+    return out
 
-    if sys.argv[1] == 'scan':
-        a = Scan()
-        a.create(sys.argv[2])
-        a.show()
+def scan(source):
+    """
+    Scan the source and return a list of namespaces it uses.
+    """
+    db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+    scan = ensure_scanned(db, source)
+    scan_id = scan.id
 
-    if sys.argv[1] == 'scantodb':
-        a = Scan()
-        a.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
-        a.db.printing = False   # override web.py config setting
-        a.create(sys.argv[2])
-        a.db_finish()
+    results = db.query("select distinct iri.text as namespace from term_use, iri where iri.id=term_use.namespace_id and scan_id=$scan_id", vars=locals())
+    out = u""
+    for r in results:
+        out += r.namespace
+        out += u"\n"
+    db.close()
+    return out
 
-    if sys.argv[1] == 'showns':
-        db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
-        db.printing = False   # override web.py config setting
-        iri = sys.argv[2]
-        db_showns(db, iri)
+################################################################
 
-    if sys.argv[1] == 'show':
-        db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
-        db.printing = False   # override web.py config setting
-        iri = sys.argv[2]
-        ns = sys.argv[3]
-        db_show(db, iri, ns)
+import tornado.httpserver
+import tornado.ioloop
+import tornado.web
+from tornado.options import define, options
 
-    if sys.argv[1] == 'scanlit':
-        a = Scan()
-        a.create(sys.argv[2], with_literals=True)
-        a.show()
+class ReportHandler(tornado.web.RequestHandler):
+    def get(self):
+        # better error handling would be good.  the 404 on missing arguments
+        # is particularly confusing.
+        out = report(self.get_argument("source"),
+                     self.get_argument("namespace"))
+        self.set_header("Content-Type", "text/plain")
+        self.write(out)
+
+        # self.set_header("Content-Type", "text/plain")
+        # self.write('api violation\n')
+            
+define("port", default=8087, help="run on the given port", type=int)
+
+def web_main():
+    tornado.options.parse_command_line()
+    application = tornado.web.Application([
+        (r"/report", ReportHandler),
+    ])
+    http_server = tornado.httpserver.HTTPServer(application)
+    http_server.listen(options.port)
+    tornado.ioloop.IOLoop.instance().start()
+
+################################################################
+
+def main():
+    if len(sys.argv) > 1:
+
+        if sys.argv[1] == 'clean':
+            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db.printing = False   # override web.py config setting
+            source = sys.argv[2]
+            delete_old_scans(db, source)
+
+        #if sys.argv[1] == 'scans':
+        #    db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+        #    # results = db.select('select scan.id as id, triples, time_complete, text as iri from scan, iri where scan.source_id = iri.id')
+        #    results = db.select('scan'select scan.id as id from scan')
+        #    for result in results:
+        #        print "%4(id)d %4(triples)d %(time_complete)s %(iri)s\n" % result
+
+        if sys.argv[1] == 'list':
+            a = Scan()
+            a.create(sys.argv[2])
+            a.show()
+
+        if sys.argv[1] == 'scan':
+            print scan(sys.argv[2])
+
+        if sys.argv[1] == 'report':
+            print report(sys.argv[2], sys.argv[3])
+
+        if sys.argv[1] == 'scantodb':
+            a = Scan()
+            a.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            a.db.printing = False   # override web.py config setting
+            a.create(sys.argv[2])
+            a.db_finish()
+
+        if sys.argv[1] == 'showns':
+            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db.printing = False   # override web.py config setting
+            iri = sys.argv[2]
+            db_showns(db, iri)
+
+        if sys.argv[1] == 'show':
+            db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            db.printing = False   # override web.py config setting
+            iri = sys.argv[2]
+            ns = sys.argv[3]
+            db_show(db, iri, ns)
+
+        if sys.argv[1] == 'scanlit':
+            a = Scan()
+            a.create(sys.argv[2], with_literals=True)
+            a.show()
+
+        if sys.argv[1] == 'serve':
+            web_main()
+
+    else:
+        print 'Usage: @@@'
 
 
-else:
-    print 'Usage: @@@'
+if __name__ == "__main__": 
+    main()
+
