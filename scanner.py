@@ -65,67 +65,15 @@ from debugtools import debug
 
 import splitter
 
-# **NOT** thread aware.   That's okay, we don't use threads.  But
-# tornado makes us re-entrant, so we can't necessary just use one
-# db connection...
-db_free_pool = []
-class DB (object):
-    
-    def __init__(self):
-        try:
-            self.db = db_free_pool.pop()
-        except:
-            self.db = None
-        if self.db is None:
-            self.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
-            self.db.printing = False
-    
-    def __del__(self):
-        db_free_pool.append(self.db)
+import dbconn
+import irimap
 
-    def select(self, *args, **kwargs):
-        return self.db.select(*args, **kwargs)
-
-    def insert(self, *args, **kwargs):
-        return self.db.insert(*args, **kwargs)
-
-    def update(self, *args, **kwargs):
-        return self.db.update(*args, **kwargs)
-
-    def query(self, *args, **kwargs):
-        return self.db.query(*args, **kwargs)
-
-    def delete(self, *args, **kwargs):
-        return self.db.delete(*args, **kwargs)
 
 headers = {
     'Accept': 'application/rdf+xml',
     # 'Accept': 'application/rdf+xml,application/xhtml+xml;q=0.5',
     'User-agent': 'ldregscan-%s (sandro@hawke.org)' % __version__
     }
-
-
-_iri_by_id= {}
-def iri_by_id(db, id):
-    try:
-        return _iri_by_id[id]
-    except:
-        pass
-    for result in db.select('iri', where="id=$id", vars=locals(), limit=1):
-        _iri_by_id[id] = result.text
-        return result.text
-    raise RuntimeError("bad id %s" % `id`)
-
-_id_by_iri= {}
-def id_by_iri(db, iri):
-    try:
-        return _id_by_iri[iri]
-    except:
-        pass
-    for result in db.select('iri', where="text=$iri", vars=locals(), limit=1):
-        _id_by_iri[iri] = result.id
-        return result.id
-    raise RuntimeError("bad iri, no id for %s" % `iri`)
 
 # borrowed from rdflib
 class URLInputSource(InputSource, object):
@@ -314,7 +262,7 @@ class Scan (object):
 
     def db_start(self):
         debug('scan', 'database connection started')
-        self.source_id = obtain_iri_id(self.db, self.data_source_iri)
+        self.source_id = irimap.to_id(self.db, self.data_source_iri)
         self.id = self.db.insert('scan', 
                                  source_id=self.source_id, 
                                  time_begun=self.start,
@@ -345,7 +293,7 @@ class Scan (object):
         
         for (term, use) in (self.term_uses.keys()):
             (ns, local) = splitter.split(term)
-            nsid = obtain_iri_id(self.db, ns)
+            nsid = irimap.to_id(self.db, ns)
 
             self.db.insert('term_use',
                            local=local,
@@ -358,13 +306,13 @@ class Scan (object):
         for t in self.primary_trackers:
             self.db.insert('trackers',
                            scan_id = self.id,
-                           tracker_id = obtain_iri_id(self.db, t),
+                           tracker_id = irimap.to_id(self.db, t),
                            is_primary = True
                            )
         for t in self.backup_trackers:
             self.db.insert('trackers',
                            scan_id = self.id,
-                           tracker_id = obtain_iri_id(self.db, t),
+                           tracker_id = irimap.to_id(self.db, t),
                            is_primary = False
                            )
 
@@ -386,23 +334,7 @@ class ScanningSink (object):
     def bind(self, prefix, namespace, override=False):
         debug("bind", prefix, namespace, override)
 
-iri_obtain_cache = { }   # safe to cache, since table is append-only
-def obtain_iri_id(db, iri):
-    try:
-        return iri_obtain_cache[iri]
-    except KeyError:
-        pass
-    debug('scan', 'looking for iri in db', iri)
-    results = db.select('iri', dict(text=iri), where="text=$text")
-    debug('scan', 'result from first select:', results)
-    for result in results:
-        id = result.id
-        iri_obtain_cache[iri] = id
-        return id
 
-    id = db.insert('iri', text=iri)
-    iri_obtain_cache[iri] = id
-    return id
 
 def get_latest_scan(db, source, all_scan_ids=None):
     '''Return a record of the latest completed scan of this source.
@@ -410,7 +342,7 @@ def get_latest_scan(db, source, all_scan_ids=None):
     If an array all_scan_ids is provided, all the scan ids will be
     appended to it.
     '''
-    source_id = obtain_iri_id(db, source)
+    source_id = irimap.to_id(db, source)
     max_good_id = -1
     if all_scan_ids is None:
         all_scan_ids = []
@@ -445,7 +377,7 @@ def db_showns(db, source):
 def db_show(db, source, ns):
     good = get_latest_scan(db, source)
     scan_id = good.id
-    ns_id = obtain_iri_id(db, ns)
+    ns_id = irimap.to_id(db, ns)
     print `good`
     for r in db.select('term_use', 
                        where='scan_id=$scan_id and namespace_id=$ns_id', 
@@ -496,10 +428,10 @@ def report(source, ns):
     Return a report [in std format?] of the given source, those
     entries in the given namespace
     """
-    db = DB()
+    db = dbconn.Connection()
     scan = ensure_scanned(db, source)
     scan_id = scan.id
-    ns_id = id_by_iri(db, ns)
+    ns_id = irimap.to_id(db, ns)
     results = db.select('term_use', 
                         where="scan_id=$scan_id and namespace_id=$ns_id", 
                         vars=locals())
@@ -513,7 +445,7 @@ def scan(source):
     """
     Scan the source and return a list of namespaces it uses.
     """
-    db = DB()
+    db = dbconn.Connection()
     scan = ensure_scanned(db, source)
     scan_id = scan.id
 
@@ -530,7 +462,7 @@ def trackers(ns):
     We can do this cheaply here; it's not part of what scanners are
     really supposed to do, but we have the machinery.
     """
-    db = DB()
+    db = dbconn.Connection()
     scan = ensure_scanned(db, ns)
     scan_id = scan.id
 
@@ -579,7 +511,7 @@ def main():
     if len(sys.argv) > 1:
 
         if sys.argv[1] == 'clean':
-            db = DB()
+            db = dbconn.Connection()
             db.printing = False   # override web.py config setting
             source = sys.argv[2]
             delete_old_scans(db, source)
@@ -604,19 +536,19 @@ def main():
 
         if sys.argv[1] == 'scantodb':
             a = Scan()
-            a.db = DB()
+            a.db = dbconn.Connection()
             a.db.printing = False   # override web.py config setting
             a.create(sys.argv[2])
             a.db_finish()
 
         if sys.argv[1] == 'showns':
-            db = DB()
+            db = dbconn.Connection()
             db.printing = False   # override web.py config setting
             iri = sys.argv[2]
             db_showns(db, iri)
 
         if sys.argv[1] == 'show':
-            db = DB()
+            db = dbconn.Connection()
             db.printing = False   # override web.py config setting
             iri = sys.argv[2]
             ns = sys.argv[3]
