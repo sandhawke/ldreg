@@ -268,7 +268,9 @@ class Scan (object):
                                  time_begun=self.start,
                                  triples=0,
                                  last_modified=self.last_modified,
-                                 status=0)
+                                 status=0,  # or just use time_completed?
+                                 obsoleted_by=2147483647, # 32bit maxint
+                                 )
         debug('scan', 'database record created', self.id)
 
     def db_update_count(self):
@@ -317,7 +319,7 @@ class Scan (object):
                            )
 
 
-        delete_old_scans(self.db, self.data_source_iri)
+        obsolete_old_scans(self.db, self.data_source_iri, self.id)
 
 
 class ScanningSink (object):
@@ -365,6 +367,19 @@ def delete_old_scans(db, source):
         db.delete('scan', where='id='+str(id))
         db.delete('term_use', where='scan_id='+str(id))
         print "Deleting records of scan", id
+    print "Kept scan", good.id
+
+def obsolete_old_scans(db, source, scan_id):
+    ids = []
+    good = get_latest_scan(db, source, ids)
+    for id in ids:
+        if id == good.id:
+            continue
+        db.update('scan', where='id='+str(id),
+                  obsoleted_by=scan_id)
+        #db.update('term_use', where='scan_id='+str(id), 
+        #          obsoleted_by=scan_id)
+        print "Obsoleting records of scan", id
     print "Kept scan", good.id
 
 def db_showns(db, source):

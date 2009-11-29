@@ -14,7 +14,8 @@ CREATE TABLE `scan` (
   `triples` int(11) NOT NULL,
   `time_complete` int(11),
   `last_modified` char(32),
-  `status` int(8),  -- 0=in progress 1=done 2=obsolete
+  `status` int(8),  -- 0=in progress 1=done
+  `obsoleted_by` int(11) NOT NULL,  -- set to big int when not obsoleted
   PRIMARY KEY (id),
   FOREIGN KEY (source_id) REFERENCES iri (id)
 );

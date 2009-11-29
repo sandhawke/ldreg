@@ -6,8 +6,8 @@
       python tracker.py list 'http://ldreg.org/demo/pet-terms#Dog'
 
   Operations:
-       ping -- tell the tracker about some source that may
-                        have changed
+       scan -- tell the tracker about some source that may
+                        have changed   
        list -- ask for a list of sources which use this term
        sync -- update a previous list of sources
        wait -- 
@@ -18,18 +18,24 @@
   ISSUE: can we do this anonymously, or do we need a relationship with
   the trackers?    I believe we can do it all anonymously.   
 
+
+  FOR TESTING:
+     -- need temp databases (memory?   scratch names?    scratch TABLES NAMES?)
+     -- need web access over-ride?
+
 """
 
 import sys
 import urllib
 import urllib2
+import time
 
 import scanner
 import dbconn
 import irimap
 import splitter
 
-def ping(source):   
+def scan(source):   
     """Go see what's going on at this source and update the database
     based on changes it may have had.
 
@@ -42,32 +48,45 @@ def ping(source):
     db = dbconn.Connection()
     scanner.ensure_scanned(db, source)
 
-def list(term):  # todo: , timecode, limit, offset):
+def latest_timecode(db):
+    for r in db.query("select id from scan order by id desc limit 1"):
+        return r.id
+
+def list_(term, timecode=None):   # , limit, offset):
     """
 
     see http://dev.mysql.com/doc/refman/5.0/en/select.html
 
     for us, timecodes ARE scanids.   A new scanid == a new change.
+
+    are we going to need to SORT when we do limit/offset?   pagerank?
+
     """
     db = dbconn.Connection()
     (ns, local) = splitter.split(term)
     ns_id = irimap.to_id(db, ns)
-    
-    # will include obsolete scans, maybe...?   or is that status=2?
-    # (or do we need to bring timecodes into that?)
-    for r in db.query('select text from term_use, scan, iri where namespace_id=$ns_id and scan.id=scan_id and status=1 and local=$local and iri.id=source_id', vars=locals()):
-        yield r.text
 
-def sync(term, after_timecode, through_timecode):
+    if timecode is None:
+        timecode = latest_timecode(db)
+        print "list using latest timecode:", timecode
+
+    for r in db.query('select text, type from term_use, scan, iri where scan_id <= $timecode and obsoleted_by > $timecode and namespace_id=$ns_id and scan.id=scan_id and status=1 and local=$local and iri.id=source_id', vars=locals()):
+        yield unicode(r.type)+" "+unicode(r.text)
+
+def sync(term, start_timecode, stop_timecode):
     """
     Report back on the additions and deletions to the list for this
-    term between the two timecodes.  Will be rejected if we've garbage
+    term between the two timecodes.  Should be rejected if we've garbage
     collected them timecodes, but that should usually only happen if
     the changes are enough that list() is faster anyway.
     """
-
-    raise Exception('not implemented yet')
-
+    old = sorted(list_(term, start_timecode))
+    new = sorted(list_(term, stop_timecode))
+    (dels, adds) = diff(old, new)
+    for x in dels:
+        print "-",x
+    for x in adds:
+        print "+",x
 
 def wait(term, after_timecode):
     """Wait until there's a change in the list for term after the
@@ -81,15 +100,60 @@ def wait(term, after_timecode):
 
     raise Exception('not implemented yet')
 
+def diff(old, new):
+    deleted = []
+    added = []
+    i = 0
+    j = 0
+    while i < len(old):
+        if j >= len(new):
+            deleted.extend(old[i:])
+            break
+        if old[i] == new[j]:
+            i += 1
+            j += 1
+        elif old[i] < new[j]:
+            deleted.append(old[i])
+            i += 1
+        else: #  old[i] > new[j]:
+            added.append(new[j])
+            j += 1
+    while j < len(new):
+            added.append(new[j])
+            j += 1
+    return (deleted, added)
+    
+def watch(term):
+    
+    last = []
+    while True:
+        new = sorted(list_(term))
+        (dels, adds) = diff(last, new)
+        for x in dels:
+            print "-",x
+        for x in adds:
+            print "+",x
+        last = new
+        time.sleep(0.5)
+
+    
 
 def main():
     if len(sys.argv) > 1:
-        if sys.argv[1] == "ping":
-            ping(sys.argv[2])
+        if sys.argv[1] == "scan":
+            scan(sys.argv[2])
             print "done."
         elif sys.argv[1] == "list":
-            for s in list(sys.argv[2]):
+            try:
+                tc = sys.argv[3]
+            except IndexError:
+                tc = None
+            for s in list_(sys.argv[2], tc):
                 print s
+        elif sys.argv[1] == "watch":
+            watch(sys.argv[2])
+        elif sys.argv[1] == "sync":
+            sync(sys.argv[2], sys.argv[3], sys.argv[4])
         elif sys.argv[1] == "serve":
             web_main()
 
