@@ -42,7 +42,6 @@ def scan(source):
     We just use our scanner, but under the cover it can/should use an
     public delegation to other scanners.
 
-    rename as "scan" ?
 
     """
     db = dbconn.Connection()
@@ -52,7 +51,16 @@ def latest_timecode(db):
     for r in db.query("select id from scan order by id desc limit 1"):
         return r.id
 
-def list_(term, timecode=None):   # , limit, offset):
+class GarbageTimecode ( Exception ):
+    pass
+
+def min_timecode(db):
+    v = 0
+    for r in db.query("select val from globals where prop='min_timecode'"):
+        v = int(r.val)
+    return v
+
+def list_(term, timecode=None, db=None):   # , limit, offset):
     """
 
     see http://dev.mysql.com/doc/refman/5.0/en/select.html
@@ -62,13 +70,18 @@ def list_(term, timecode=None):   # , limit, offset):
     are we going to need to SORT when we do limit/offset?   pagerank?
 
     """
-    db = dbconn.Connection()
+    if db is None:
+        db = dbconn.Connection()
+
     (ns, local) = splitter.split(term)
     ns_id = irimap.to_id(db, ns)
 
     if timecode is None:
         timecode = latest_timecode(db)
         print "list using latest timecode:", timecode
+    else:
+        if timecode < min_timecode(db):
+            raise GarbageTimecode()
 
     for r in db.query('select text, type from term_use, scan, iri where scan_id <= $timecode and obsoleted_by > $timecode and namespace_id=$ns_id and scan.id=scan_id and status=1 and local=$local and iri.id=source_id', vars=locals()):
         yield unicode(r.type)+" "+unicode(r.text)
@@ -80,9 +93,13 @@ def sync(term, start_timecode, stop_timecode):
     collected them timecodes, but that should usually only happen if
     the changes are enough that list() is faster anyway.
     """
-    old = sorted(list_(term, start_timecode))
-    new = sorted(list_(term, stop_timecode))
+    db = dbconn.Connection()
+    old = sorted(list_(term, start_timecode, db))
+    new = sorted(list_(term, stop_timecode, db))
     (dels, adds) = diff(old, new)
+    scanner.vote_timecode(db, term, start_timecode, stop_timecode,
+                          useful=( len(dels) + len(adds) < len(new) ))
+        
     for x in dels:
         print "-",x
     for x in adds:
@@ -153,7 +170,7 @@ def main():
         elif sys.argv[1] == "watch":
             watch(sys.argv[2])
         elif sys.argv[1] == "sync":
-            sync(sys.argv[2], sys.argv[3], sys.argv[4])
+            sync(sys.argv[2], int(sys.argv[3]), int(sys.argv[4]))
         elif sys.argv[1] == "serve":
             web_main()
 

@@ -51,5 +51,12 @@ CREATE TABLE `trackers` (
   `tracker_id` int(11) NOT NULL,
   `is_primary` BOOLEAN NOT NULL
 );
-
+--
+--
+--
+DROP TABLE IF EXISTS `globals`;
+CREATE TABLE `globals` (
+  `prop` varchar(255) NOT NULL,
+  `val` text NOT NULL
+);
          	      

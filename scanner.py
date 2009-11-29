@@ -369,6 +369,43 @@ def delete_old_scans(db, source):
         print "Deleting records of scan", id
     print "Kept scan", good.id
 
+def vote_timecode(db, term, tc0, tc1, useful):
+    """Someone did a sync, and being able to reach this far (tc0) back
+    into history turned out to be useful/not-useful for getting a
+    short sync (ending in tc1).
+
+    We should keep history whenever there's a USEFUL vote AND tc1 is
+    very recent (within a few seconds of now).   If there's NOT-USEFUL
+    vote for some term, that can erase USEFUL votes on that same source.
+    """
+
+    # if tc1 is more than a minute old, ignore this vote; we don't
+    # want to devote system resources to that.
+
+    # if NOT USEFUL, then delete any USEFUL votes which have tc < tc0
+
+    # if USEFUL, then record that vote
+
+    pass   # not implemented yet
+
+
+
+def delete_old_obsolete_scans():
+    """
+    Someone should call this every once in a while, to reduce clutter
+    in the database.   
+
+    Uses the data gathered from vote_timecode() to determine which
+    scan and term_use records are safe to delete.
+
+    Before we start to actually delete, record a new value for min_timecode:
+       update globals set val=$val where prop='min_timecode';
+
+    """
+    raise Exception('not implemented yet')
+    
+
+
 def obsolete_old_scans(db, source, scan_id):
     ids = []
     good = get_latest_scan(db, source, ids)
