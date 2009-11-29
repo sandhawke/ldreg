@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<!DOCTYPE rdf:RDF [
+    <!ENTITY rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#" >
+    <!ENTITY rdfs "http://www.w3.org/2000/01/rdf-schema#" >
+    <!ENTITY xsd "http://www.w3.org/2001/XMLSchema#" >
+    <!ENTITY owl "http://www.w3.org/2002/07/owl#" >
+    <!ENTITY dc 'http://purl.org/dc/elements/1.1/'>
+    <!ENTITY ldreg "http://ldreg.org/terms#" >
+    <!ENTITY pet "http://ldreg.org/demo/pet-terms#" >
+]>
+<rdf:RDF 
+    xmlns:rdf="&rdf;" xmlns:rdfs="&rdfs;" xmlns:owl="&owl;" 
+    xmlns:xsd="&xsd;" xmlns:dc="&dc;" xmlns:ldreg="&ldreg;"
+    xmlns:pet="&pet;" xml:base="&pet;"
+>
+
+  <owl:Ontology rdf:about="">
+    <dc:creator rdf:resource="http://www.w3.org/People/Sandro/data#Sandro_Hawke"/>
+    <ldreg:tracker rdf:resource="http://rdftracker.com"/>
+  </owl:Ontology>
+
+  <owl:Class rdf:about="Dog">
+    <rdfs:comment>You know, a dog!</rdfs:comment>
+  </owl:Class>
+    
+    
+  <owl:DataProperty rdf:about="name">
+    <rdfs:comment>the pet's name, of course</rdfs:comment>
+    <rdfs:range rdf:resource="&pet;Dog"/>
+    <rdfs:domain rdf:resource="&xsd;string"/>
+  </owl:DataProperty>
+    
+</rdf:RDF>
+

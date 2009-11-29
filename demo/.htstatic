@@ -1,0 +1,5 @@
+Options +Indexes
+
+RewriteEngine On
+RewriteBase /demo
+RewriteRule ^([^.]*)$ $1.rdf [L]
