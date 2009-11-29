@@ -26,6 +26,9 @@ TODO:
     - make min-age (now 5sec) be adaptive to load time of that source?
     - support query of sparql stuff
     - abort/redirect if we find out about sparq or an existing scan
+      (BUT that will break our hack of using the scanner to find trackers)
+      We need to factor out an open-triple-stream thing.
+
 """
 __version__ = "0.0.1"
 
@@ -52,6 +55,9 @@ import web
 import rdflib
 from rdflib import RDF
 from rdflib.syntax.parsers.RDFXMLParser import RDFXMLParser
+
+primary_tracker = rdflib.URIRef('http://ldreg.org/terms#tracker')
+backup_tracker =  rdflib.URIRef('http://ldreg.org/terms#backupTracker')
 
 import debugtools
 from debugtools import debug
@@ -179,6 +185,8 @@ class Scan (object):
         self.expires = None
         self.with_literals = False
         self.db = None
+        self.primary_trackers = []
+        self.backup_trackers = []
 
     def create(self, source, with_literals=False, last_modified=None):
 
@@ -225,6 +233,16 @@ class Scan (object):
                 # only do this for some datatypes...?
                 for word in re.findall(word_pattern, unicode(o)):
                     incr(self.keywords, word.lower())
+
+        if p == primary_tracker:
+            # CHECK SUBJECT, TOO!
+            print '****** found a TRACKER triple'
+            self.primary_trackers.append(str(o))
+        elif p == backup_tracker:
+            print '****found a TRACKER triple'
+            self.backup_trackers.append(str(o))
+
+        #print "NOT TRACKER", `str(p)`
 
 
     def show(self):
@@ -337,6 +355,20 @@ class Scan (object):
                            count = self.term_uses[(term,use)]
                            )
 
+        for t in self.primary_trackers:
+            self.db.insert('trackers',
+                           scan_id = self.id,
+                           tracker_id = obtain_iri_id(self.db, t),
+                           is_primary = True
+                           )
+        for t in self.backup_trackers:
+            self.db.insert('trackers',
+                           scan_id = self.id,
+                           tracker_id = obtain_iri_id(self.db, t),
+                           is_primary = False
+                           )
+
+
         delete_old_scans(self.db, self.data_source_iri)
 
 
@@ -447,6 +479,8 @@ def ensure_scanned(db, source):
             return good
         last_modified = good.last_modified
         print "have good-but-old scan, last mod", last_modified
+    else:
+        last_modified = None
  
     a = Scan()
     a.db = db
@@ -490,6 +524,24 @@ def scan(source):
         out += u"\n"
     del db
     return out
+
+def trackers(ns):
+    """
+    We can do this cheaply here; it's not part of what scanners are
+    really supposed to do, but we have the machinery.
+    """
+    db = DB()
+    scan = ensure_scanned(db, ns)
+    scan_id = scan.id
+
+    results = db.query("select distinct iri.text as tracker, is_primary from trackers, iri where iri.id=tracker_id and scan_id=$scan_id order by 1 - is_primary", vars=locals())
+    out = u""
+    for r in results:
+        out += r.tracker
+        out += u"\n"
+    del db
+    return out
+
 
 ################################################################
 
