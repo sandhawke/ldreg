@@ -14,7 +14,7 @@ CREATE TABLE `scan` (
   `triples` int(11) NOT NULL,
   `time_complete` int(11),
   `last_modified` char(32),
-  `status` int(8),
+  `status` int(8),  -- 0=in progress 1=done 2=obsolete
   PRIMARY KEY (id),
   FOREIGN KEY (source_id) REFERENCES iri (id)
 );
@@ -26,7 +26,7 @@ CREATE TABLE `term_use` (
   `local` varchar(255) NOT NULL,
   `namespace_id` int(11) NOT NULL,
   `scan_id` int(11) NOT NULL,
-  `type` varchar(1) NOT NULL,
+  `type` varchar(1) NOT NULL, -- (c)lass (s)subject (p)redicate (o)object
   `count` int(11),
   PRIMARY KEY (`local`,`namespace_id`,`scan_id`,`type`),
   FOREIGN KEY (namespace_id) REFERENCES iri (id),
@@ -38,20 +38,10 @@ CREATE TABLE `term_use` (
 DROP TABLE IF EXISTS `iri`;
 CREATE TABLE `iri` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `text` text,
-  PRIMARY KEY (`id`)
+  `text` text NOT NULL,
+  PRIMARY KEY USING HASH (`id`),
+  KEY USING HASH (`text`(32))
 );
---
---
---
-DROP TABLE IF EXISTS `regq`;
-CREATE TABLE `regq` (
-  `tracker_id` int(11) NOT NULL,
-  `source_id` int(11) NOT NULL,
-  `when_added` int(11) NOT NULL,
-  `when_done` int(11)
-);
---
 --
 --
 DROP TABLE IF EXISTS `trackers`;
