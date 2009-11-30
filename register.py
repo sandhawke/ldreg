@@ -118,9 +118,12 @@ def list_(term):
     for t in ns_trackers:
         try:
             print "Asking "+t
-            print tracker_call(t, "list", term=term)
+            return tracker_call(t, "list", term=term)
         except TrackerFailure:
             print t+": failed, moving on..."
+
+def sync(tracker, term, start, stop):
+    return tracker_call(tracker, "sync", term=term, start=start, stop=stop)
 
 def tracker_call(tracker, op, **kwargs):
     
@@ -131,7 +134,7 @@ def tracker_call(tracker, op, **kwargs):
         
     url += "?op="+op
     for (key, value) in kwargs.items():
-        url += "&"+key+"="+urllib.quote(value, safe=":/")
+        url += "&"+key+"="+urllib.quote(unicode(value), safe=":/")
         
     req = urllib2.Request(url)
     try:

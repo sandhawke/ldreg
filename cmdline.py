@@ -30,11 +30,15 @@ class Command (object):
 
 def command_register(options, source):
 
-    register.register(source)
+    print register.register(source)
 
 def command_list(options, term):
 
-    register.list_(term)
+    print register.list_(term)
+
+def command_sync(options, tracker, term, start, stop=-1):
+
+    print register.sync(tracker, term, start, stop)
 
 
 

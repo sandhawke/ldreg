@@ -178,19 +178,38 @@ class Tracker(tornado.web.RequestHandler):
             self.ok()
         elif op == "list":
             term = self.get_argument("term")
-            print "term =",term
+            db = dbconn.Connection()
             tc = int(self.get_argument("timecode", "-1"))
-            for s in list_(term, tc):
-                self.write(s+"\n")  # use json?
-            self.write("--DONE\n")
-            print "list done"
+            if tc == -1:
+                tc = latest_timecode(db)
+            
+            # see whether they asked for json on xml?
+            s = '<term_uses term="%s" timecode="%d">\n' % (term, tc)  # @@@ XML-QUOTE
+            for src in list_(term, tc, db):
+                # include last-modified for each source?
+                s += "  <source>"+src+"</source>\n"  # @@@ XML value quot
+            s += "</term_uses term>\n"
+            self.write(s)
+
         elif op == "sync":
             term = self.get_argument("term")
             tc0 = int(self.get_argument("start"))
             tc1 = int(self.get_argument("stop", "-1"))
+
+            db = dbconn.Connection()
+            now = latest_timecode(db)
+            if tc1 == -1: tc1 = now
+
             (dels, adds) = sync(term, tc0, tc1)
-            self.write("del "+repr(dels))
-            self.write("add "+repr(adds))
+            now = latest_timecode(db)
+            # build a result object that can be serialized in XML, JSON, RDF,..
+            s = '<term_use_diff term="%s" start="%d" stop="%d" now="%d">\n' % (term, tc0, tc1, now)
+            for x in dels:
+                s += "  <del>"+x+"</del>\n"
+            for x in adds:
+                s += "  <add>"+x+"</add>\n"
+            s += "</term_use_diff>\n"
+            self.write(s)
         elif op == "source-status":
             source = self.get_argument("source")
             # should report the last-modified for that source.
