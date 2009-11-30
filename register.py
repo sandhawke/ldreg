@@ -1,13 +1,16 @@
 #! /usr/bin/env python
 """
 
-  [planned] Can run as a web server OR on the command line.
 
   Given the URL of some data source, register it with all appropriate
   trackers.
 
   ISSUE: can we do this anonymously, or do we need a relationship with
   the trackers?    I believe we can do it all anonymously.   
+
+  TODO:
+      have a version of this that doesn't use a database, so it's
+      easier for folks to install on their local system.
 
 """
 
@@ -84,9 +87,10 @@ def notify(tracker, source, namespaces):
     might allow the tracker to work better.)
     """
 
-    # is the tracker URL the same as the tracker POST address???
+    # is the tracker URL the same as the tracker POST address?  I guess so!
 
-    values = {'source' : source,
+    values = {'op': 'scan',
+              'source' : source,
               'namespaces' : " ".join(namespaces),
               }
 

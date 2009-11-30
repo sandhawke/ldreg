@@ -186,8 +186,19 @@ class Tracker(tornado.web.RequestHandler):
             (dels, adds) = sync(term, tc0, tc1)
             self.write("del "+repr(dels))
             self.write("add "+repr(adds))
+        elif op == "source-status":
+            source = self.get_argument("source")
+            # should report the last-modified for that source.
         else:
             raise tornado.web.HTTPError(404, "Invalid op value %s" %`op`)
+
+    def post(self):
+
+        op = self.get_argument("op", "manual")
+        if op == "scan":
+            source = self.get_argument("source")
+            scan(source)
+            self.ok()
 
     def ok(self):
         self.set_header("Content-Type", "text/plain")

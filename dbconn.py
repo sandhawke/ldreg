@@ -5,10 +5,14 @@
 
 """
 
+import os
 import logging
 
 # for now, we'll use web.py's db underlayer
 import web
+
+dbname = os.getenv('LDREG_DATABASE', 'ldreg')
+logging.info("Using database ", `dbname`)
 
 # **NOT** thread aware.  That's okay, we don't use threads.  But under
 # tornado we'll want to be re-entrant, so we can't just always use one
@@ -22,7 +26,7 @@ class Connection (object):
         except:
             self.db = None
         if self.db is None:
-            self.db = web.database(dbn='mysql', db='ldreg', user='sandro', pw='')
+            self.db = web.database(dbn='mysql', db=dbname, user='sandro', pw='')
             # odd that web.py defaults to printing the SQL, but it does...
             self.db.printing = True
     

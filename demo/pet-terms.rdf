@@ -16,7 +16,7 @@
 
   <owl:Ontology rdf:about="">
     <dc:creator rdf:resource="http://www.w3.org/People/Sandro/data#Sandro_Hawke"/>
-    <ldreg:tracker rdf:resource="http://rdftracker.com"/>
+    <ldreg:tracker rdf:resource="http://127.0.0.1:8088"/>
   </owl:Ontology>
 
   <owl:Class rdf:about="Dog">
