@@ -11,6 +11,9 @@ from optparse import OptionParser
 import sys
 import os
 
+import register
+
+
 def scan_module_for_commands(module_name):
     
     result = {}
@@ -26,9 +29,14 @@ class Command (object):
     pass
 
 def command_register(options, source):
-    import register
 
     register.register(source)
+
+def command_list(options, term):
+
+    register.list_(term)
+
+
 
     # print >>sys.stderr, "Multiple deliverables selected, but that doesn't work with a single source-override."
     # sys.exit(1)

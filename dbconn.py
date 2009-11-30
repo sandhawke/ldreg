@@ -28,7 +28,7 @@ class Connection (object):
         if self.db is None:
             self.db = web.database(dbn='mysql', db=dbname, user='sandro', pw='')
             # odd that web.py defaults to printing the SQL, but it does...
-            self.db.printing = True
+            self.db.printing = False
     
     def __del__(self):
         db_free_pool.append(self.db)

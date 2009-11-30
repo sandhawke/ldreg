@@ -512,12 +512,10 @@ def scan(source):
     scan_id = scan.id
 
     results = db.query("select distinct iri.text as namespace from term_use, iri where iri.id=term_use.namespace_id and scan_id=$scan_id", vars=locals())
-    out = u""
     for r in results:
-        out += r.namespace
-        out += u"\n"
+        yield r.namespace
     del db
-    return out
+
 
 def trackers(ns):
     """
@@ -529,12 +527,9 @@ def trackers(ns):
     scan_id = scan.id
 
     results = db.query("select distinct iri.text as tracker, is_primary from trackers, iri where iri.id=tracker_id and scan_id=$scan_id order by 1 - is_primary", vars=locals())
-    out = u""
     for r in results:
-        out += r.tracker
-        out += u"\n"
+        yield r.tracker
     del db
-    return out
 
 
 ################################################################
@@ -590,10 +585,10 @@ def main():
             a.show()
 
         if sys.argv[1] == 'scan':
-            print scan(sys.argv[2])
+            print "\n".join([x for x in scan(sys.argv[2])])
 
         if sys.argv[1] == 'report':
-            print report(sys.argv[2], sys.argv[3])
+            print "\n".join([x for x in report(sys.argv[2], sys.argv[3])])
 
         if sys.argv[1] == 'scantodb':
             a = Scan()

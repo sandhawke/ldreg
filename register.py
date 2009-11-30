@@ -10,7 +10,8 @@
 
   TODO:
       have a version of this that doesn't use a database, so it's
-      easier for folks to install on their local system.
+      easier for folks to install on their local system.   But still,
+      it should probably have a cache of the namespace documents...
 
 """
 
@@ -19,6 +20,10 @@ import urllib
 import urllib2
 
 import scanner
+import splitter
+
+class TrackerFailure (Exception) :
+    pass
 
 def register(source):
     """ A while-you-wait registration function.
@@ -47,8 +52,10 @@ def register(source):
     for (t,t_ns_list) in trackers.items():
         if not t: continue
         print "Notifying", `t`
-        notify(t, source, t_ns_list)
-    print "regdone."
+        try:
+            notify(t, source, t_ns_list)
+        except TrackerFailure:
+            print t+": failed, moving on..."
 
 def determine_namespaces(source):
     """Return a list of the namespaces used in the data at this
@@ -58,7 +65,7 @@ def determine_namespaces(source):
     scanner?  Nah, in any case use our own scanner, which may talk to
     the source's scanner.
     """
-    return scanner.scan(source).split("\n")
+    return [x for x in scanner.scan(source)]
 
 def determine_trackers(ns):
     """Return a list of the tracker iris for this namespace.  Primary
@@ -78,7 +85,7 @@ def determine_trackers(ns):
     HACK FOR NOW: just use the scanner, until we factor out its
     triple streaming and caching code....
     """
-    return scanner.trackers(ns).split("\n")
+    return [x for x in scanner.trackers(ns)]
 
 def notify(tracker, source, namespaces):
     """Notify this tracker that this source now uses (only) these namespaces
@@ -96,10 +103,45 @@ def notify(tracker, source, namespaces):
 
     data = urllib.urlencode(values)
     req = urllib2.Request(tracker, data)   # headers?
-    response = urllib2.urlopen(req)
-    the_page = response.read()
-    print "the_page", the_page
+    try:
+        response = urllib2.urlopen(req)
+    except urllib2.URLError as e:
+        raise TrackerFailure(e.args)
+    else:
+        the_page = response.read()
+        print "the_page", the_page
 
+def list_(term):
+    print "Looking for trackers for term"
+    (ns, local) = splitter.split(term)
+    ns_trackers = determine_trackers(ns)
+    for t in ns_trackers:
+        try:
+            print "Asking "+t
+            print tracker_call(t, "list", term=term)
+        except TrackerFailure:
+            print t+": failed, moving on..."
+
+def tracker_call(tracker, op, **kwargs):
+    
+    if tracker.endswith("/"):
+        url = tracker
+    else:
+        url = tracker + "/"
+        
+    url += "?op="+op
+    for (key, value) in kwargs.items():
+        url += "&"+key+"="+urllib.quote(value, safe=":/")
+        
+    req = urllib2.Request(url)
+    try:
+        response = urllib2.urlopen(req)
+    except urllib2.URLError as e:
+        raise TrackerFailure(e.args)
+
+    result = response.read()
+    # any general parsing?   error codes?    de-xml/json?
+    return result
 
 def main():
     if len(sys.argv) > 1:

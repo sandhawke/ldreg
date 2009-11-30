@@ -29,6 +29,7 @@ import sys
 import urllib
 import urllib2
 import time
+import logging
 
 import scanner
 import dbconn
@@ -168,6 +169,7 @@ class Tracker(tornado.web.RequestHandler):
         # specify ROLE, along with term?
 
         op = self.get_argument("op", "manual")
+        logging.debug('op: %s' % `op`)
         if op == "manual":
             self.write("<p>No manual mode yet, sorry.</p>")
         elif op == "scan":
@@ -176,9 +178,12 @@ class Tracker(tornado.web.RequestHandler):
             self.ok()
         elif op == "list":
             term = self.get_argument("term")
+            print "term =",term
             tc = int(self.get_argument("timecode", "-1"))
             for s in list_(term, tc):
                 self.write(s+"\n")  # use json?
+            self.write("--DONE\n")
+            print "list done"
         elif op == "sync":
             term = self.get_argument("term")
             tc0 = int(self.get_argument("start"))
