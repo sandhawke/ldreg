@@ -60,7 +60,7 @@ def min_timecode(db):
         v = int(r.val)
     return v
 
-def list_(term, timecode=None, db=None):   # , limit, offset):
+def list_(term, timecode=(-1), db=None):   # , limit, offset):
     """
 
     see http://dev.mysql.com/doc/refman/5.0/en/select.html
@@ -76,7 +76,7 @@ def list_(term, timecode=None, db=None):   # , limit, offset):
     (ns, local) = splitter.split(term)
     ns_id = irimap.to_id(db, ns)
 
-    if timecode is None:
+    if timecode == -1:
         timecode = latest_timecode(db)
         print "list using latest timecode:", timecode
     else:
@@ -99,11 +99,11 @@ def sync(term, start_timecode, stop_timecode):
     (dels, adds) = diff(old, new)
     scanner.vote_timecode(db, term, start_timecode, stop_timecode,
                           useful=( len(dels) + len(adds) < len(new) ))
-        
-    for x in dels:
-        print "-",x
-    for x in adds:
-        print "+",x
+    return (dels, adds)   
+    #for x in dels:
+    #    print "-",x
+    #for x in adds:
+    #    print "+",x
 
 def wait(term, after_timecode):
     """Wait until there's a change in the list for term after the
@@ -154,6 +154,59 @@ def watch(term):
         time.sleep(0.5)
 
     
+################################################################
+
+import tornado.httpserver
+import tornado.ioloop
+import tornado.web
+from tornado.options import define, options
+
+class Tracker(tornado.web.RequestHandler):
+    def get(self):
+
+        # allow term to be wildcarded...?
+        # specify ROLE, along with term?
+
+        op = self.get_argument("op", "manual")
+        if op == "manual":
+            self.write("<p>No manual mode yet, sorry.</p>")
+        elif op == "scan":
+            source = self.get_argument("source")
+            scan(source)
+            self.ok()
+        elif op == "list":
+            term = self.get_argument("term")
+            tc = int(self.get_argument("timecode", "-1"))
+            for s in list_(term, tc):
+                self.write(s+"\n")  # use json?
+        elif op == "sync":
+            term = self.get_argument("term")
+            tc0 = int(self.get_argument("start"))
+            tc1 = int(self.get_argument("stop", "-1"))
+            (dels, adds) = sync(term, tc0, tc1)
+            self.write("del "+repr(dels))
+            self.write("add "+repr(adds))
+        else:
+            raise tornado.web.HTTPError(404, "Invalid op value %s" %`op`)
+
+    def ok(self):
+        self.set_header("Content-Type", "text/plain")
+        self.write("200 OK\n")
+
+            
+
+def web_main():
+    define("port", default=8088, help="run on the given port", type=int)
+    tornado.options.parse_command_line()
+    application = tornado.web.Application([
+        (r"/", Tracker),
+    ])
+    http_server = tornado.httpserver.HTTPServer(application)
+    http_server.listen(options.port)
+    tornado.ioloop.IOLoop.instance().start()
+
+################################################################
+
 
 def main():
     if len(sys.argv) > 1:
@@ -164,7 +217,7 @@ def main():
             try:
                 tc = sys.argv[3]
             except IndexError:
-                tc = None
+                tc = -1
             for s in list_(sys.argv[2], tc):
                 print s
         elif sys.argv[1] == "watch":

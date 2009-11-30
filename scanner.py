@@ -56,9 +56,6 @@ import rdflib
 from rdflib import RDF
 from rdflib.syntax.parsers.RDFXMLParser import RDFXMLParser
 
-primary_tracker = rdflib.URIRef('http://ldreg.org/terms#tracker')
-backup_tracker =  rdflib.URIRef('http://ldreg.org/terms#backupTracker')
-
 import debugtools
 from debugtools import debug
 #debugtools.tags.add('scan')
@@ -68,6 +65,10 @@ import splitter
 import dbconn
 import irimap
 
+max_timecode = 2147483647 # 32bit maxint
+
+primary_tracker = rdflib.URIRef('http://ldreg.org/terms#tracker')
+backup_tracker =  rdflib.URIRef('http://ldreg.org/terms#backupTracker')
 
 headers = {
     'Accept': 'application/rdf+xml',
@@ -269,7 +270,7 @@ class Scan (object):
                                  triples=0,
                                  last_modified=self.last_modified,
                                  status=0,  # or just use time_completed?
-                                 obsoleted_by=2147483647, # 32bit maxint
+                                 obsoleted_by=max_timecode
                                  )
         debug('scan', 'database record created', self.id)
 
@@ -407,17 +408,26 @@ def delete_old_obsolete_scans():
 
 
 def obsolete_old_scans(db, source, scan_id):
-    ids = []
-    good = get_latest_scan(db, source, ids)
-    for id in ids:
-        if id == good.id:
-            continue
-        db.update('scan', where='id='+str(id),
-                  obsoleted_by=scan_id)
-        #db.update('term_use', where='scan_id='+str(id), 
-        #          obsoleted_by=scan_id)
-        print "Obsoleting records of scan", id
-    print "Kept scan", good.id
+
+    source_id = irimap.to_id(db, source)
+    max =  max_timecode
+    db.update('scan', 
+              where='id < $scan_id and source_id = $source_id and obsoleted_by = $max',
+              obsoleted_by=scan_id,
+              vars=locals())
+              
+
+    ## ids = []
+    ## good = get_latest_scan(db, source, ids)
+    ## for id in ids:
+    ##     if id == good.id:
+    ##         continue
+    ##     db.update('scan', where='id='+str(id),
+    ##               obsoleted_by=scan_id)
+    ##     #db.update('term_use', where='scan_id='+str(id), 
+    ##     #          obsoleted_by=scan_id)
+    ##     print "Obsoleting records of scan", id
+    ## print "Kept scan", good.id
 
 def db_showns(db, source):
     good = get_latest_scan(db, source)
@@ -546,9 +556,8 @@ class ReportHandler(tornado.web.RequestHandler):
         # self.set_header("Content-Type", "text/plain")
         # self.write('api violation\n')
             
-define("port", default=8087, help="run on the given port", type=int)
-
 def web_main():
+    define("port", default=8087, help="run on the given port", type=int)
     tornado.options.parse_command_line()
     application = tornado.web.Application([
         (r"/report", ReportHandler),
